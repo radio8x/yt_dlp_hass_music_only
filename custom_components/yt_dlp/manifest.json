@@ -8,10 +8,10 @@
   "dependencies": [
     "media_source"
   ],
-  "documentation": "https://github.com/khaisilk1910/yt_dlp_hass",
+  "documentation": "https://github.com/radio8x/yt_dlp_hass_music_only",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/khaisilk1910/yt_dlp_hass/issues",
+  "issue_tracker": "https://github.com/radio8x/yt_dlp_hass_music_only/issues",
   "requirements": [
     "yt-dlp==2026.8.19",
     "yt-dlp-ejs==0.8.0"

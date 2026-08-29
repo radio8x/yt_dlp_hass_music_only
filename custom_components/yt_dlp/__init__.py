@@ -79,7 +79,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         hass.data[_DATA_STREAM_VIEW] = True
 
     if not hass.data.get(_DATA_CORE_SERVICES):
-        async_register_download_services(hass)
+      # async_register_download_services(hass)
         async_register_play_services(hass)
         hass.data[_DATA_CORE_SERVICES] = True
 
@@ -220,19 +220,19 @@ async def _async_start_optional_runtime(
         )
 
     # Frontend/Lovelace resource I/O is also strictly post-start.
-    try:
-        frontend_module = await async_import_module(
-            hass, f"{__package__}.frontend"
-        )
-        integration_version = async_get_loaded_integration(hass, DOMAIN).version
-        card_version = (
-            str(integration_version) if integration_version is not None else VERSION
-        )
-        await frontend_module.async_register_media_card(hass, card_version)
-    except Exception:  # noqa: BLE001
-        _LOGGER.exception(
-            "Dashboard card registration failed after startup; core remains available"
-        )
+   # try:
+   #     frontend_module = await async_import_module(
+   #         hass, f"{__package__}.frontend"
+   #     )
+   #     integration_version = async_get_loaded_integration(hass, DOMAIN).version
+   #     card_version = (
+   #         str(integration_version) if integration_version is not None else VERSION
+   #     )
+   #     await frontend_module.async_register_media_card(hass, card_version)
+   # except Exception:  # noqa: BLE001
+   #     _LOGGER.exception(
+   #         "Dashboard card registration failed after startup; core remains available"
+   #     )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
