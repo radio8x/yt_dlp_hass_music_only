@@ -155,17 +155,18 @@ def async_register_play_services(hass: HomeAssistant) -> None:
         schema=PLAY_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_PLAY_MULTI,
-        async_play_multi,
-        schema=PLAY_MULTI_SCHEMA,
-        supports_response=SupportsResponse.OPTIONAL,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SCAN_LIBRARY,
-        async_scan_library,
-        schema=SCAN_LIBRARY_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
-    )
+    # play_multi và scan_library bị tắt: chỉ dùng yt_dlp.play qua một loa.
+    # hass.services.async_register(
+    #     DOMAIN,
+    #     SERVICE_PLAY_MULTI,
+    #     async_play_multi,
+    #     schema=PLAY_MULTI_SCHEMA,
+    #     supports_response=SupportsResponse.OPTIONAL,
+    # )
+    # hass.services.async_register(
+    #     DOMAIN,
+    #     SERVICE_SCAN_LIBRARY,
+    #     async_scan_library,
+    #     schema=SCAN_LIBRARY_SCHEMA,
+    #     supports_response=SupportsResponse.ONLY,
+    # )
