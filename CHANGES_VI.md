@@ -1,18 +1,30 @@
-# Bản tùy biến "chỉ yt_dlp.play" — tóm tắt kết quả
+# Bản tùy biến "chỉ yt_dlp.play" — dọn sạch toàn diện (v3)
 
-## Chỉ còn 1 service duy nhất: `yt_dlp.play`
-Vào Developer Tools → Actions, gõ "yt_dlp" chỉ nên thấy đúng 1 dòng.
+## Chỉ còn 1 service: `yt_dlp.play`, không màn hình thiết lập
+- Thêm integration: tự động tạo cấu hình ngay, không hỏi gì
+- Không có nút "Configure" (đã bỏ toàn bộ Options flow: thư mục, thông báo Zalo/mobile, media targets)
 
-## Các file đã bị XÓA hoàn toàn khỏi mã nguồn
-- download_services.py, download_runtime.py, runtime.py (tải xuống)
-- favorites.py, favorites_playback.py, favorites_runtime.py, favorites_services.py (yêu thích)
-- target_services.py, tv_playback.py (tự động chọn thiết bị / phát lên TV)
-- frontend.py và thư mục frontend/ (thẻ giao diện Lovelace, JS 148K)
+## File đã XÓA (so với bản gốc, tổng cộng 15 file + 1 thư mục)
+download_services.py, download_runtime.py, runtime.py, favorites.py,
+favorites_playback.py, favorites_runtime.py, favorites_services.py,
+target_services.py, tv_playback.py, frontend.py, frontend/ (thư mục),
+dlna.py, dlna_runtime.py, media_targets.py
 
-## Các file vẫn còn nhưng KHÔNG chạy (giữ để tương thích nội bộ, không xóa được an toàn)
-- dlna.py, dlna_runtime.py — do media_source.py (module lõi HA) vẫn tham chiếu tới
-- media_targets.py — do config_flow.py (màn hình cài đặt) vẫn tham chiếu tới
-Các file này không được gọi tới trong luồng chạy thực tế nữa, không tốn CPU/RAM.
+## File đã viết lại gọn hơn nhiều
+- `__init__.py` — chỉ đăng ký 1 HTTP view (stream relay) + service `play`
+- `config_flow.py` — từ 587 dòng còn ~30 dòng, chỉ tự tạo entry
+- `play_services.py` — chỉ còn hàm `async_play`, bỏ `play_multi`/`scan_library`
+- `media_source.py` — chỉ còn nhánh resolve stream token, bỏ nhánh DLNA + thư viện local
+- `media_http.py` — bỏ `YoutubeDlpMediaView` (phục vụ file local), chỉ giữ `YoutubeDlpStreamView` (relay)
+- `const.py` — từ ~90 hằng số còn ~20, chỉ giữ cái thực sự được dùng
+
+## File vẫn còn NHƯNG phần lớn không chạy (không xóa an toàn được)
+- `manager.py` (54K) — vẫn tồn tại vì `yt_dlp.play` cần nó làm "vỏ chứa" runtime,
+  nhưng toàn bộ logic tải xuống bên trong không bao giờ được gọi tới nữa
+  (service download đã xóa). Không gỡ tiếp phần này vì rủi ro làm hỏng cả
+  `play` chỉ để tiết kiệm vài chục KB code chết.
+- `notifications.py` — vẫn được `manager.py` import ở nhánh code chết nói trên,
+  không thể xóa nếu không viết lại `manager.py`.
 
 ## services.yaml — chỉ còn
 ```yaml
@@ -31,27 +43,22 @@ play:
           multiple: false
 ```
 
-## __init__.py — viết lại hoàn toàn sạch
-Không còn dòng comment thừa, không import module đã xóa, chỉ đăng ký:
-- 2 HTTP view (media/stream) để phát luồng
-- Service `yt_dlp.play`
-- Theo dõi resume playback (tính năng lõi giữ nguyên trạng thái khi mất kết nối tạm thời)
+## Cách cài lên Home Assistant
+1. Nếu đã có tích hợp "YouTube-DLP" cũ: Settings → Devices & services →
+   YouTube-DLP → ⋮ → Delete (xóa cấu hình cũ, vì config data đã đổi cấu trúc)
+2. Copy toàn bộ `custom_components/yt_dlp` trong zip này, ghi đè vào
+   `/config/custom_components/yt_dlp`
+3. Khởi động lại Home Assistant HOÀN TOÀN
+4. Settings → Devices & services → Add integration → tìm "YouTube-DLP" →
+   tự động thêm ngay, không hỏi gì
+5. Kiểm tra: Developer Tools → Actions → gõ "yt_dlp" → chỉ còn `yt_dlp.play`
 
-## Cách cài lên Home Assistant (thay thế bản cũ)
-1. Xóa toàn bộ thư mục `/config/custom_components/yt_dlp` cũ trên HA
-2. Copy toàn bộ thư mục `custom_components/yt_dlp` trong file zip này vào đúng vị trí đó
-3. Khởi động lại Home Assistant HOÀN TOÀN (không chỉ reload integration)
-4. Kiểm tra: Developer Tools → Actions → gõ "yt_dlp" → chỉ còn `yt_dlp.play`
-
-## Đẩy lên GitHub (fork radio8x/yt_dlp_hass_music_only)
-Trên máy Windows, trong thư mục đã clone fork:
-1. Xóa các file/thư mục đã liệt kê ở mục "Các file đã bị XÓA" phía trên
-2. Copy đè `__init__.py`, `services.yaml`, `play_services.py` từ file zip này vào
-3. Chạy:
-```
-git add -A
-git commit -m "Xoa toan bo file khong dung, chi giu yt_dlp.play"
-git push origin main
-```
-4. Tạo release mới trên GitHub (vd v2.0.0)
-5. Vào HACS trên HA → bấm Update → khởi động lại HA
+## Đẩy lên GitHub fork (radio8x/yt_dlp_hass_music_only)
+Trong thư mục repo đã clone trên Windows:
+1. Xóa hết nội dung cũ (giữ lại thư mục `.git`)
+2. Giải nén zip này, copy toàn bộ nội dung bên trong thư mục
+   `yt_dlp_hass_music_only` vào đúng chỗ vừa xóa
+3. `git add -A`
+4. `git commit -m "Don sach toan dien: bo man hinh thiet lap, chi con play"`
+5. `git push origin main`
+6. Tạo release mới (v3.0.0) → HACS Update → restart HA

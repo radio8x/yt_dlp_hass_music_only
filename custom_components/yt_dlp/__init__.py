@@ -19,7 +19,7 @@ from homeassistant.helpers.typing import ConfigType
 from .const import CONF_MEDIA_LIBRARY_PATH, DOMAIN, STATE_DOWNLOADER
 from .helpers import normalize_download_directory
 from .manager import YoutubeDlpManager
-from .media_http import YoutubeDlpMediaView, YoutubeDlpStreamView
+from .media_http import YoutubeDlpStreamView
 from .play_runtime import get_playback_manager  # noqa: F401  (re-exported: media_http.py/media_source.py dùng `from . import get_playback_manager`)
 from .play_services import async_register_play_services
 from .playback import PlaybackManager
@@ -28,16 +28,12 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-_DATA_MEDIA_VIEW = f"{DOMAIN}_media_view_registered"
 _DATA_STREAM_VIEW = f"{DOMAIN}_stream_view_registered"
 _DATA_CORE_SERVICES = f"{DOMAIN}_core_services_registered"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register the HTTP stream endpoints and the `play` service."""
-    if not hass.data.get(_DATA_MEDIA_VIEW):
-        hass.http.register_view(YoutubeDlpMediaView())
-        hass.data[_DATA_MEDIA_VIEW] = True
+    """Register the HTTP stream endpoint and the `play` service."""
     if not hass.data.get(_DATA_STREAM_VIEW):
         hass.http.register_view(YoutubeDlpStreamView())
         hass.data[_DATA_STREAM_VIEW] = True
