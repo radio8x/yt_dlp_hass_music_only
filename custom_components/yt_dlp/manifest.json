@@ -8,10 +8,10 @@
   "dependencies": [
     "media_source"
   ],
-  "documentation": "https://github.com/radio8x/yt_dlp_hass_music_only",
+  "documentation": "https://github.com/<TEN_GITHUB_CUA_BAN>/<TEN_REPO_CUA_BAN>",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/radio8x/yt_dlp_hass_music_only/issues",
+  "issue_tracker": "https://github.com/<TEN_GITHUB_CUA_BAN>/<TEN_REPO_CUA_BAN>/issues",
   "requirements": [
     "yt-dlp==2026.8.19",
     "yt-dlp-ejs==0.8.0"

@@ -1,172 +1,109 @@
-"""Protected speaker/local-library service boundary.
+"""YouTube-DLP integration for Home Assistant.
 
-This module never imports the download worker or Favorites controller.  It is
-the only service layer allowed to turn a remote URL into media_player playback.
+Bản tùy biến: chỉ giữ lại service `yt_dlp.play` để phát một link YouTube/HTTP(S)
+qua một media_player. Toàn bộ tải xuống, playlist đa loa, quét thư viện, DLNA,
+TV, favorites và thẻ giao diện Lovelace đã bị loại bỏ khỏi mã nguồn.
 """
 
 from __future__ import annotations
 
-import voluptuous as vol
+import logging
 
-from homeassistant.components.media_player import (
-    ATTR_MEDIA_CONTENT_ID,
-    ATTR_MEDIA_CONTENT_TYPE,
-    ATTR_MEDIA_EXTRA,
-    SERVICE_PLAY_MEDIA,
-)
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_FILE_PATH
+from homeassistant.core import HomeAssistant, callback
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.start import async_at_started
+from homeassistant.helpers.typing import ConfigType
 
-from .const import (
-    ATTR_FORCE,
-    ATTR_MEDIA_PLAYER,
-    ATTR_MEDIA_PLAYERS,
-    ATTR_URL,
-    DOMAIN,
-    SERVICE_PLAY,
-    SERVICE_PLAY_MULTI,
-    SERVICE_SCAN_LIBRARY,
-)
-from .play_runtime import get_playback_manager
-from .service_validation import http_url, media_player_entities, media_player_entity
+from .const import CONF_MEDIA_LIBRARY_PATH, DOMAIN, STATE_DOWNLOADER
+from .helpers import normalize_download_directory
+from .manager import YoutubeDlpManager
+from .media_http import YoutubeDlpMediaView, YoutubeDlpStreamView
+from .play_services import async_register_play_services
+from .playback import PlaybackManager
 
-PLAY_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_URL): http_url,
-        vol.Required(ATTR_MEDIA_PLAYER): media_player_entity,
-    }
-)
+_LOGGER = logging.getLogger(__name__)
 
-PLAY_MULTI_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_URL): http_url,
-        vol.Required(ATTR_MEDIA_PLAYERS): media_player_entities,
-    }
-)
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-SCAN_LIBRARY_SCHEMA = vol.Schema({vol.Optional(ATTR_FORCE, default=False): cv.boolean})
+_DATA_MEDIA_VIEW = f"{DOMAIN}_media_view_registered"
+_DATA_STREAM_VIEW = f"{DOMAIN}_stream_view_registered"
+_DATA_CORE_SERVICES = f"{DOMAIN}_core_services_registered"
 
 
-def async_register_play_services(hass: HomeAssistant) -> None:
-    """Register protected direct speaker playback and library scan services."""
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the HTTP stream endpoints and the `play` service."""
+    if not hass.data.get(_DATA_MEDIA_VIEW):
+        hass.http.register_view(YoutubeDlpMediaView())
+        hass.data[_DATA_MEDIA_VIEW] = True
+    if not hass.data.get(_DATA_STREAM_VIEW):
+        hass.http.register_view(YoutubeDlpStreamView())
+        hass.data[_DATA_STREAM_VIEW] = True
 
-    async def async_play(call: ServiceCall) -> ServiceResponse | None:
-        playback = get_playback_manager(hass)
-        entity_id = call.data[ATTR_MEDIA_PLAYER]
-        try:
-            info, media_source_id = await playback.async_create_stream(call.data[ATTR_URL])
-            metadata: dict[str, object] = {"title": info.title}
-            if info.artist:
-                metadata["artist"] = info.artist
-            if info.thumbnail:
-                metadata["images"] = [{"url": info.thumbnail}]
+    if not hass.data.get(_DATA_CORE_SERVICES):
+        async_register_play_services(hass)
+        hass.data[_DATA_CORE_SERVICES] = True
 
-            await hass.services.async_call(
-                "media_player",
-                SERVICE_PLAY_MEDIA,
-                service_data={
-                    ATTR_MEDIA_CONTENT_ID: media_source_id,
-                    ATTR_MEDIA_CONTENT_TYPE: info.mime_type,
-                    ATTR_MEDIA_EXTRA: {"metadata": metadata},
-                },
-                target={"entity_id": entity_id},
-                blocking=True,
-                context=call.context,
-            )
-            playback.async_track_remote_playback(
-                entity_id, call.data[ATTR_URL], info, media_source_id
-            )
-        except HomeAssistantError:
-            raise
-        except Exception as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="play_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+    return True
 
-        response = {"media_player": entity_id, **info.as_dict()}
-        return response if call.return_response else None
 
-    async def async_play_multi(call: ServiceCall) -> ServiceResponse | None:
-        playback = get_playback_manager(hass)
-        entity_ids = call.data[ATTR_MEDIA_PLAYERS]
-        try:
-            info, media_source_id = await playback.async_create_stream(call.data[ATTR_URL])
-            metadata: dict[str, object] = {"title": info.title}
-            if info.artist:
-                metadata["artist"] = info.artist
-            if info.thumbnail:
-                metadata["images"] = [{"url": info.thumbnail}]
-
-            await hass.services.async_call(
-                "media_player",
-                SERVICE_PLAY_MEDIA,
-                service_data={
-                    ATTR_MEDIA_CONTENT_ID: media_source_id,
-                    ATTR_MEDIA_CONTENT_TYPE: info.mime_type,
-                    ATTR_MEDIA_EXTRA: {"metadata": metadata},
-                },
-                target={"entity_id": entity_ids},
-                blocking=True,
-                context=call.context,
-            )
-            for entity_id in entity_ids:
-                playback.async_track_remote_playback(
-                    entity_id, call.data[ATTR_URL], info, media_source_id
-                )
-        except HomeAssistantError:
-            raise
-        except Exception as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="play_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-
-        response = {
-            "media_players": entity_ids,
-            "player_count": len(entity_ids),
-            **info.as_dict(),
-        }
-        return response if call.return_response else None
-
-    async def async_scan_library(call: ServiceCall) -> ServiceResponse:
-        playback = get_playback_manager(hass)
-        try:
-            items = await playback.async_scan_library(force=call.data[ATTR_FORCE])
-        except Exception as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="library_scan_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
-        return {
-            "path": playback.library_path,
-            "count": len(items),
-            "items": items,
-        }
-
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_PLAY,
-        async_play,
-        schema=PLAY_SCHEMA,
-        supports_response=SupportsResponse.OPTIONAL,
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Publish the core runtime without blocking Home Assistant startup."""
+    download_path = normalize_download_directory(str(entry.data.get(CONF_FILE_PATH) or ""))
+    library_path = normalize_download_directory(
+        str(entry.data.get(CONF_MEDIA_LIBRARY_PATH) or download_path)
     )
-    # play_multi và scan_library bị tắt: chỉ dùng yt_dlp.play qua một loa.
-    # hass.services.async_register(
-    #     DOMAIN,
-    #     SERVICE_PLAY_MULTI,
-    #     async_play_multi,
-    #     schema=PLAY_MULTI_SCHEMA,
-    #     supports_response=SupportsResponse.OPTIONAL,
-    # )
-    # hass.services.async_register(
-    #     DOMAIN,
-    #     SERVICE_SCAN_LIBRARY,
-    #     async_scan_library,
-    #     schema=SCAN_LIBRARY_SCHEMA,
-    #     supports_response=SupportsResponse.ONLY,
-    # )
+
+    manager = YoutubeDlpManager(hass, entry, download_path, None)
+    manager.playback_manager = PlaybackManager(hass, entry, library_path)
+    entry.runtime_data = manager
+    manager.async_publish_state()
+
+    @callback
+    def _schedule_post_start(_hass: HomeAssistant) -> None:
+        entry.async_create_background_task(
+            hass,
+            _async_start_optional_runtime(hass, entry, manager),
+            "yt_dlp_post_start",
+        )
+
+    entry.async_on_unload(async_at_started(hass, _schedule_post_start))
+
+    _LOGGER.info(
+        "YouTube-DLP core ready without startup I/O: output=%s library=%s",
+        download_path,
+        library_path,
+    )
+    return True
+
+
+async def _async_start_optional_runtime(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    manager: YoutubeDlpManager,
+) -> None:
+    """Start the only remaining post-start convenience: playback resume events."""
+    if getattr(entry, "runtime_data", None) is not manager:
+        return
+
+    playback = getattr(manager, "playback_manager", None)
+    if isinstance(playback, PlaybackManager):
+        try:
+            playback.async_start_resume_monitoring()
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Playback resume monitoring failed to start")
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload runtime managers without unregistering global services."""
+    manager = getattr(entry, "runtime_data", None)
+    if isinstance(manager, YoutubeDlpManager):
+        playback = getattr(manager, "playback_manager", None)
+        if isinstance(playback, PlaybackManager):
+            playback.async_stop_resume_monitoring()
+
+        await manager.async_shutdown()
+
+    hass.states.async_remove(STATE_DOWNLOADER)
+    return True
