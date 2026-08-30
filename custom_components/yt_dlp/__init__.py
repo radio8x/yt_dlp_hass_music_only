@@ -20,6 +20,7 @@ from .const import CONF_MEDIA_LIBRARY_PATH, DOMAIN, STATE_DOWNLOADER
 from .helpers import normalize_download_directory
 from .manager import YoutubeDlpManager
 from .media_http import YoutubeDlpMediaView, YoutubeDlpStreamView
+from .play_runtime import get_playback_manager  # noqa: F401  (re-exported: media_http.py/media_source.py dùng `from . import get_playback_manager`)
 from .play_services import async_register_play_services
 from .playback import PlaybackManager
 
