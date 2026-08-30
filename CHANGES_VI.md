@@ -52,13 +52,3 @@ play:
 4. Settings → Devices & services → Add integration → tìm "YouTube-DLP" →
    tự động thêm ngay, không hỏi gì
 5. Kiểm tra: Developer Tools → Actions → gõ "yt_dlp" → chỉ còn `yt_dlp.play`
-
-## Đẩy lên GitHub fork (radio8x/yt_dlp_hass_music_only)
-Trong thư mục repo đã clone trên Windows:
-1. Xóa hết nội dung cũ (giữ lại thư mục `.git`)
-2. Giải nén zip này, copy toàn bộ nội dung bên trong thư mục
-   `yt_dlp_hass_music_only` vào đúng chỗ vừa xóa
-3. `git add -A`
-4. `git commit -m "Don sach toan dien: bo man hinh thiet lap, chi con play"`
-5. `git push origin main`
-6. Tạo release mới (v3.0.0) → HACS Update → restart HA
